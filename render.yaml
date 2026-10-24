@@ -1,0 +1,55 @@
+# ==============================================================================
+# AI StudyMate - Render Infrastructure as Code Blueprint
+# Defines Web Service and PostgreSQL with pgvector extension.
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # Web Application Service (Node.js Express)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: studymate-backend
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npm run prisma:migrate:deploy && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: studymate-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TRUST_PROXY
+        value: "true"
+      - key: CORS_ORIGIN
+        value: https://app.studymate.ai
+      - key: LOG_LEVEL
+        value: info
+      - key: OPENAI_API_KEY
+        sync: false # Set securely in Render dashboard
+      - key: OPENAI_MODEL
+        value: gpt-4o
+      - key: OPENAI_EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: AI_GLOBAL_MONTHLY_COST_LIMIT_USD
+        value: "250.0"
+      - key: METRICS_AUTH_TOKEN
+        generateValue: true
+
+databases:
+  # ----------------------------------------------------------------------------
+  # Managed PostgreSQL with pgvector
+  # ----------------------------------------------------------------------------
+  - name: studymate-db
+    databaseName: studymatedb
+    user: studymate
+    plan: starter
+    region: oregon
+    postgresMajorVersion: 16

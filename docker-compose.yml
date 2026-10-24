@@ -1,0 +1,94 @@
+# ==============================================================================
+# AI StudyMate - Docker Compose (Local / Staging Orchestration)
+# Sets up API, PostgreSQL 16 with pgvector extension, and Redis cache.
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL with pgvector extension
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: studymate-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: studymatedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d studymatedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - studymate-network
+
+  # ----------------------------------------------------------------------------
+  # Redis Cache & Asynchronous Queue
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: studymate-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - studymate-network
+
+  # ----------------------------------------------------------------------------
+  # Backend API Application
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studymate-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: staging
+      PORT: 5000
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/studymatedb?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: staging-super-secret-jwt-key-minimum-32-characters-required
+      CORS_ORIGIN: "*"
+      LOG_LEVEL: debug
+      TRUST_PROXY: "true"
+      UPLOAD_DIR: /app/uploads/documents
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder}
+      OPENAI_MODEL: gpt-4o
+      OPENAI_EMBEDDING_MODEL: text-embedding-3-small
+    volumes:
+      - app_uploads:/app/uploads/documents
+    networks:
+      - studymate-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_uploads:
+    driver: local
+
+networks:
+  studymate-network:
+    driver: bridge

@@ -1,0 +1,55 @@
+# ==============================================================================
+# AI StudyMate - Docker Compose (Production Deployment Profile)
+# Hardened settings: resource limits, bounded connections, logging rotation,
+# read-only root where appropriate, non-root execution.
+# ==============================================================================
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studymate-prod-api
+    restart: always
+    ports:
+      - "8080:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://app.studymate.ai}
+      TRUST_PROXY: "true"
+      LOG_LEVEL: info
+      REQUEST_BODY_LIMIT: 10mb
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      AI_GLOBAL_MONTHLY_COST_LIMIT_USD: ${AI_GLOBAL_MONTHLY_COST_LIMIT_USD:-250.0}
+      METRICS_AUTH_TOKEN: ${METRICS_AUTH_TOKEN}
+      UPLOAD_DIR: /app/uploads/documents
+    volumes:
+      - persistent_uploads:/app/uploads/documents
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - internal-network
+
+volumes:
+  persistent_uploads:
+    driver: local
+
+networks:
+  internal-network:
+    driver: bridge
